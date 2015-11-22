@@ -1,0 +1,154 @@
+---
+title: "Machine Learning Course Project"
+author: "Savir Huitron"
+date: "November 22, 2015"
+output: html_document
+---
+
+## Summary
+
+The main goal of this project is to predict the manner in which people exercise,for the information compiled in the using of devices such as *Nike Fuel Band*. this paper relates how does build the prediction model.
+
+
+## Preparing the Data
+
+We Separate our data into training and test: 
+
+
+```{r}
+library(caret)
+
+ptrain <- read.csv("pml-training.csv")
+ptest <- read.csv("pml-testing.csv")
+
+```
+
+We divide in two parts our trainig set:
+
+```{r}
+set.seed(123)
+
+inTrain <- createDataPartition(y=ptrain$classe, p=0.7, list=F)
+ptrain1 <- ptrain[inTrain, ]
+ptrain2 <- ptrain[-inTrain, ]
+
+```
+
+We clean our data sets removing the missing data, data that doens't work for our prediction model 
+
+```{r}
+# removing the zeros
+rz <- nearZeroVar(ptrain1)
+ptrain1 <- ptrain1[, -rz]
+ptrain2 <- ptrain2[, -rz]
+
+#removing the NA's
+n_a <- sapply(ptrain1, function(x) mean(is.na(x))) > 0.95
+ptrain1 <- ptrain1[, n_a==F]
+ptrain2 <- ptrain2[, n_a==F]
+
+#this variables are variables that doesn't work for our prediction model
+
+ptrain1 <- ptrain1[, -(1:5)]
+ptrain2 <- ptrain2[, -(1:5)]
+
+```
+
+
+## Modeling
+
+As we can remember in our class, the most used algorithms for predictive models are Random Forest and Decision Trees, both are good models, so we can run the first one and make some test for the performance.
+
+
+```{r}
+fitcontrol <- trainControl(method = "cv", number = 3, verboseIter = F)
+
+# fit model on ptrain1
+
+fit <- train(classe ~ ., data = ptrain1, method = "rf", trControl = fitcontrol)
+
+
+# summary of the Model 
+
+fit$finalModel
+
+```
+
+as we can notice we use 500 trees and 27 splits.
+
+## Evaluation
+
+Now, we use the fitted model to predict the label (“classe”) in ptrain2, and show the confusion matrix to compare the predicted versus the actual labels:
+
+
+```{r}
+# use model to predict classe in validation set (ptrain2)
+preds <- predict(fit, newdata=ptrain2)
+
+```
+
+
+```{r}
+# show confusion matrix to get estimate of out-of-sample error
+confusionMatrix(ptrain2$classe, preds)
+
+```
+
+
+The accuracy under this model is 99.8%, the predicted accuracy for the out-of-sample error is 0.2%.
+
+This a very good result, so this is a good algorithm we can use for the predict on the test.
+
+
+## Training the Model
+
+
+What we have done after this line is create a train model for a subsetting data test, and the model has work, in this lines we do the same for the original data set.
+
+```{r}
+
+# remove variables with nearly zero variance
+r_v <- nearZeroVar(ptrain)
+ptrain <- ptrain[, -r_v]
+ptest <- ptest[, -r_v]
+
+# remove variables that are almost always NA
+N_A <- sapply(ptrain, function(x) mean(is.na(x))) > 0.95
+ptrain <- ptrain[, N_A == F]
+ptest <- ptest[, N_A == F]
+
+# remove the first five variables 
+
+ptrain <- ptrain[, -(1:5)]
+ptest <- ptest[, -(1:5)]
+
+# re-fit model using full training set (ptrain)
+fitControl <- trainControl(method="cv", number=3, verboseIter=F)
+fit <- train(classe ~ ., data=ptrain, method="rf", trControl=fitControl)
+
+```
+
+
+## Predictions
+
+```{r}
+
+# predict on test set
+preds <- predict(fit, newdata=ptest)
+
+# convert predictions to character vector
+preds <- as.character(preds)
+
+# create function to write predictions to files
+pml_write_files <- function(x) {
+    n <- length(x)
+    for(i in 1:n) {
+        filename <- paste0("problem_id_", i, ".txt")
+        write.table(x[i], file=filename, quote=F, row.names=F, col.names=F)
+    }
+}
+
+# create prediction files to submit
+pml_write_files(preds)
+
+```
